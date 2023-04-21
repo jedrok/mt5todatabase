@@ -1,0 +1,1 @@
+CHistoryPositionInfo class provides an easy access to the closed position properties.
