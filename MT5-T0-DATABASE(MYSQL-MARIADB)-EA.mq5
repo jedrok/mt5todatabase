@@ -203,7 +203,7 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason){
   ResetLastError();                   //resetting last error
-  MySqlDisconnect(Db_connection);                //disconecting database on deninitalization
+  MySqlDisconnect(Db_connection);     //disconecting database on deninitalization
   Print("Database Disconnected!!!");    
   ExpertRemove();                     //removing expert advisor from chart
   Comment(" ");                       //removing comments from the chart
