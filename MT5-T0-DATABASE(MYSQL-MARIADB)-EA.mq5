@@ -86,6 +86,7 @@ int OnInit()
  
  if(Db_connection== -1){
    Print("Connection failed! Error: "+IntegerToString(MySqlErrorNumber) +": " +MySqlErrorDescription); 
+   return INIT_FAILED;
  }
   else{ 
     Print("Connected! Db_co_connectionID#",Db_connection);
