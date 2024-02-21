@@ -12,15 +12,15 @@
 //+------------------------------------------------------------------+
 #include <MQLMySQL.mqh>
 #include <CHistoryPositionInfo.mqh>
-CHistoryPositionInfo hist_position;               // instantiating CHistoryPositionsInfo class
+CHistoryPositionInfo hist_position;            // instantiating CHistoryPositionsInfo class
 #include <Trade\DealInfo.mqh>
-CDealInfo           m_deal;                       // instantiating CDealInfo class
-#include <math_utils.mqh>
+CDealInfo           m_deal;                    // instantiating CDealInfo class
+#include <math_utils.mqh>                      // unused lib, havent found a use case yet since i refactored the code
 
 //+------------------------------------------------------------------+
 //| Global variables                                                 |
 //+------------------------------------------------------------------+
-int  Db_connection;                                        // database identifier
+int  Db_connection;                            // database identifier
 
 //+------------------------------------------------------------------+
 //| input variables                                                  |
@@ -28,16 +28,16 @@ int  Db_connection;                                        // database identifie
 input string experts_file_path = "C:\\Users\\jedi\\AppData\\Roaming\\MetaQuotes\\Terminal\\D0E8209F77C8CF37AD8BF550E51FF075\\MQL5\\Experts"; //seperate using double backaslash (\\)
 //input string Experts_file_path = "";
 
-input datetime  start_date = 0;                 // Start date
-input datetime  end_date   = D'2038.01.01';     // End date
-input bool      notify       = true;            // Push notification if query execution fails
+input datetime start_date = 0;                 // Start date
+input datetime end_date   = D'2038.01.01';     // End date
+input bool notify         = true;              // Push notification if query execution fails
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
  {
-  ResetLastError();                   //resetting last error
+  ResetLastError();                   // resetting last error
 //---Checking if input parameters are valid  
   if(AccountInfoInteger(ACCOUNT_MARGIN_MODE)!=ACCOUNT_MARGIN_MODE_RETAIL_HEDGING)
      {
@@ -94,12 +94,17 @@ int OnInit()
   
 //---checking if the table exists in the database(if it does not, we create the table then insert data)
  if(IsTableThere(Database,Table)){
-   Print("Great...table with table name: ",Table, " already exists in the database.");
+   Print("Great...table ",Table, " already exists in the database.");
    }
  else{
-   Print("Table with table name: ",Table," does not exist in the database!!!");
-   Print("Creating table with table name: ",Table,"...");
+   Print("Table ",Table," does not exist in the database!!!");
+   Print("Creating table ",Table,"...");
    CreateTable(Table);
+   Print("Confirming creation of table...");
+   if(IsTableThere(Database,Table))
+   {
+    Print("Table creation confirmed..."); 
+   }
 
  }
 
@@ -108,13 +113,15 @@ int OnInit()
    Alert("CHistoryPositionInfo::HistorySelect() failed!");
    return(false);
   }    
-     
+  
 //--- now process the list of all closed positions
   int total = hist_position.PositionsTotal();
   for(int i = 0; i < total; i++){
 //--- Select a closed position by its index in the list
-  if(hist_position.SelectByIndex(i)){
-   
+  if(!hist_position.SelectByIndex(i)){
+  Print("Error: OnInit() failed to select position by index, ", GetLastError());
+  }
+  else{
    datetime time_open         = hist_position.TimeOpen();
    datetime time_close        = hist_position.TimeClose();
    long     type              = hist_position.PositionType();
@@ -156,26 +163,27 @@ int OnInit()
    string duration_string = StringFormat("%02d h : %02d m : %02d s",duration_hours,duration_minutes,duration_seconds);
    
 //---checking if a record already exists in the table(if it does, we ignore and continue, if it doesn't we insert the record in table)
-   if(IsTherePrimaryKey(deal_tickets,Table)){
-    Print("Trade # ",(i+1)," with deal tickets ",deal_tickets," already exists in the table: ",Table,".");  //(i+1) to start counting from 1 instead of index 0
-
+   if(IsTherePrimaryKey(pos_id,Table)){
+    Print("Data for Position ID: ",pos_id," already exists in the table ",Table,".");  
    }
    
   else{
 //---inserting data into table
+
   string Query;  
-  Query = "INSERT INTO " +Database+ "." +Table+ "(DealTicketsInOut,Instrument,Type,Volume,OpeningPrice,OpeningTime,ClosingPrice," +
-  "ClosingTime,TradeDuration,Sl,Tp,OpenComment,CloseComment,OpenReasonDescription,CloseReasonDescription,ExpertMagicNo,Commision,Swap," +
-  "Profit,OverallProfit) VALUES("+ "'" +deal_tickets+ "'" + "," + "'"+symbol+"'" + "," + "'"+type_desc+"'" + "," +volume+ "," +price_open+ "," 
-  + "'"+time_open+"'" + "," +price_close+ "," + "'"+time_close+"'" + "," + "'"+duration_string+"'" + "," +price_sl+ "," +price_tp + "," + "'" 
-  + open_comment+"'" + "," + "'"+close_comment+"'" + "," +  "'"+open_reason_desc+"'" + "," + "'"+close_reason_desc+"'" + "," +magic+ ","  
-  + commission+ "," +swap+ "," +profit+ "," +overallprofit  +"); ";
-    
+  Query = "INSERT INTO " + Database + "." + Table + "(PositionID,DealTicketsInOut,Instrument,Type,Volume,OpeningPrice,OpeningTime,ClosingPrice," +
+        "ClosingTime,TradeDuration,Sl,Tp,OpenComment,CloseComment,OpenReasonDescription,CloseReasonDescription,ExpertMagicNo,Commision,Swap," +
+        "Profit,OverallProfit) VALUES('" + string(pos_id) + "','" + deal_tickets + "','" + symbol + "','" + type_desc + "'," + DoubleToString(volume) + "," + DoubleToString(price_open) + "," + 
+        "'" + TimeToString(time_open) + "'," + DoubleToString(price_close) + ",'" + TimeToString(time_close) + "','" + duration_string + "'," + DoubleToString(price_sl) + "," + 
+        DoubleToString(price_tp) + ",'" + open_comment + "','" + close_comment + "','" + open_reason_desc + "','" + close_reason_desc + "'," + 
+        IntegerToString(magic) + "," + DoubleToString(commission) + "," + DoubleToString(swap) + "," + DoubleToString(profit) + "," + DoubleToString(overallprofit) + ");";
+   
 //---error handling if the query fails
- bool notification_sent_flag = false;      //notification sent checker flag
+  bool notification_sent_flag = false;      //notification sent checker flag
 
   if (!MySqlExecute(Db_connection, Query)) {
-    Comment("Error #", MySqlErrorNumber, "\n", MySqlErrorDescription, "\nProblem with query: ", Query);    
+    Print("Error #", MySqlErrorNumber, "\n", MySqlErrorDescription, "\nProblem with OnInit() insert query!!!", Query);    
+    Comment("Error #", MySqlErrorNumber, "\n", MySqlErrorDescription, "\nProblem with OnInit() insert query!!!", Query);    
      if(notify && !notification_sent_flag){    
        SendNotification("Problem with OnInit() insert query!!!");
         notification_sent_flag = true;    
@@ -184,13 +192,16 @@ int OnInit()
          return INIT_FAILED;  //incase of query failure, stop and exit execution(initialization of expert advisor stops)
       }   
    else {
-     Print("Trading data for trade # ", (i+1) +" with deal tickets: " +deal_tickets+ " has been successfully inserted into the database.");    //to track number of trade records inserted into table in database
-     notification_sent_flag = false;  //resetting the notifications sent flag to false
-       }  
+        Print("Data for Position ID: " + string(pos_id) + " successfully inserted into the database.");    //to track number of trade records inserted into table in database
+        notification_sent_flag = false;  //resetting the notifications sent flag to false
+          
+        }  
    }
    
    
-    }                       //end of if statment    
+    }                       //end of if statment 
+    
+    
  }                          //end of for loop
      
 //---print message to let us know all previous trades have been inserted on initialization 
@@ -246,8 +257,10 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
 //--- now process the lastest(most recent) closed position
   int total = hist_position.PositionsTotal();
 //--- Select the latest closed position by its index in the list
-  if(hist_position.SelectByIndex(total-1)){
-
+  if(!hist_position.SelectByIndex(total-1)){
+  Print("Error: OnTradeTransaction() failed to select position by index, ", GetLastError());
+  }
+  else{
    datetime time_open         = hist_position.TimeOpen();
    datetime time_close        = hist_position.TimeClose();
    long     type              = hist_position.PositionType();
@@ -287,49 +300,52 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
 //---reading credentials from ini file
   Database = ReadIni(experts_file_path+"\\MyConnection.ini","MYSQL","Database");
   Table = ReadIni(experts_file_path+"\\MyConnection.ini","MYSQL","Table"); 
-              
-  Query = "INSERT INTO " +Database+ "." +Table+ "(DealTicketsInOut,Instrument,Type,Volume,OpeningPrice,OpeningTime,ClosingPrice,"+
-  "ClosingTime,TradeDuration,Sl,Tp,OpenComment,CloseComment,OpenReasonDescription,CloseReasonDescription,ExpertMagicNo,Commision,Swap,"+
-  "Profit,OverallProfit) VALUES("+ "'" +deal_tickets+ "'" + "," + "'"+symbol+"'" + "," + "'"+type_desc+"'" + "," +volume+ "," +price_open+ ","
-  + "'"+time_open+"'" + "," +price_close+ "," + "'"+time_close+"'" + "," + "'"+duration_string+"'" + "," +price_sl+ "," +price_tp + "," + "'"
-  +open_comment+"'" + "," + "'"+close_comment+"'" + "," +  "'"+open_reason_desc+"'" + "," + "'"+close_reason_desc+"'" + "," +magic+ "," 
-  +commission+ "," +swap+ "," +profit+ "," +overallprofit  +");";
   
+ 
+  Query = "INSERT INTO " + Database + "." + Table + "(PositionID,DealTicketsInOut,Instrument,Type,Volume,OpeningPrice,OpeningTime,ClosingPrice," +
+        "ClosingTime,TradeDuration,Sl,Tp,OpenComment,CloseComment,OpenReasonDescription,CloseReasonDescription,ExpertMagicNo,Commision,Swap," +
+        "Profit,OverallProfit) VALUES('" + string(pos_id) + "','" + deal_tickets + "','" + symbol + "','" + type_desc + "'," + DoubleToString(volume) + "," + DoubleToString(price_open) + "," + 
+        "'" + TimeToString(time_open) + "'," + DoubleToString(price_close) + ",'" + TimeToString(time_close) + "','" + duration_string + "'," + DoubleToString(price_sl) + "," + 
+        DoubleToString(price_tp) + ",'" + open_comment + "','" + close_comment + "','" + open_reason_desc + "','" + close_reason_desc + "'," + 
+        IntegerToString(magic) + "," + DoubleToString(commission) + "," + DoubleToString(swap) + "," + DoubleToString(profit) + "," + DoubleToString(overallprofit) + ");";
+   
 //---error handling if the query fails
   bool notification_sent_flag = false;      //notification sent checker flag
 
   if (!MySqlExecute(Db_connection, Query)) {
-    Comment("Error #", MySqlErrorNumber, "\n", MySqlErrorDescription, "\nProblem with query: ", Query);    
- 
+    Print("Error #", MySqlErrorNumber, "\n", MySqlErrorDescription, "\nProblem with OnTradeTransaction() insert query!!!", Query);    
+    Comment("Error #", MySqlErrorNumber, "\n", MySqlErrorDescription, "\nProblem with OnTradeTransaction() insert query!!!", Query);    
+    
      if(notify && !notification_sent_flag){    
        SendNotification("Problem with OnTradeTransaction() insert query!!!");
         notification_sent_flag = true;  
         }
       }   
    else {
-   Print("A trade with deal tickets: " +deal_tickets+" just closed and has been successfully inserted into the database."); 
+   Print("A trade with Position ID: " + string(pos_id) +" just closed and successfully inserted into the database."); 
    notification_sent_flag = false;  //resetting the notifications sent flag to false
        }  
           
-            }
+      }
+            
+            
+            
           }
        }
     }
  }
 
-//+---------------------------------------------------------------------------------------------------------------------------------------+
-
-                                                      //Custom functions\\
-                                       
-//+---------------------------------------------------------------------------------------------------------------------------------------+
+//+--------------------------------------------------------------------------------------------------------------------------------------------+
+//|                                                          Custom Functions                                                                  |
+//+--------------------------------------------------------------------------------------------------------------------------------------------+
 
 //+------------------------------------------------------------------+
 //| IsTableThere function                                            |
 //+------------------------------------------------------------------+
 bool IsTableThere(string &Database, string &Table){
 
-  int Cursor, Rows;
-  string mysql_return_value, Query;
+  int Cursor, Rows, mysql_return_value;
+  string Query;
 
   Query = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '" + Database + "' AND TABLE_NAME = '" + Table + "';";
 
@@ -359,11 +375,11 @@ bool IsTableThere(string &Database, string &Table){
 //+------------------------------------------------------------------+
 //| IsTherePrimaryKey  function                                      |
 //+------------------------------------------------------------------+
-bool IsTherePrimaryKey(string &deal_tickets, string &Table){
-  int Cursor, Rows;
-  string mysql_return_value, Query;
+bool IsTherePrimaryKey(long &pos_id, string &Table){
+  int Cursor, Rows, mysql_return_value;
+  string  Query;
 
-  Query = "SELECT EXISTS(SELECT 1 FROM "+Table+" WHERE DealTicketsInOut IN ('"+deal_tickets+"')) AS id_exists;";
+  Query = "SELECT EXISTS(SELECT 1 FROM "+Table+" WHERE PositionID IN ('"+ string(pos_id) +"')) AS id_exists;";
 
   Cursor = MySqlCursorOpen(Db_connection, Query);
     if (Cursor >= 0) {              // cursor opened
@@ -395,9 +411,10 @@ bool IsTherePrimaryKey(string &deal_tickets, string &Table){
 //+------------------------------------------------------------------+
 void CreateTable(string &Table){
 //---creating the table in the database
-  string Query; 
-  
-  Query = "CREATE TABLE `"+Table+"`" + "("+
+ string Query; 
+
+ Query = "CREATE TABLE `"+Table+"`" + "("+
+  "`PositionID` INT PRIMARY KEY NOT NULL," +  
   "`DealTicketsInOut` varchar(100) NOT NULL,"+
   "`Instrument` varchar(45) DEFAULT NULL,"+
   "`Type` varchar(45) DEFAULT NULL,"+
@@ -417,27 +434,26 @@ void CreateTable(string &Table){
   "`Commision` double DEFAULT NULL,"+
   "`Swap` double DEFAULT NULL,"+
   "`Profit` double DEFAULT NULL,"+
-  "`OverallProfit` double DEFAULT NULL,"+
-  "PRIMARY KEY (`DealTicketsInOut`));";
-  
+  "`OverallProfit` double DEFAULT NULL"+
+  ");";
                    
 //---error handling if the query fails
   bool notification_sent_flag = false;      //notification sent checker flag
 
   if (!MySqlExecute(Db_connection, Query)){
-    Comment("Error #", MySqlErrorNumber, "\n", MySqlErrorDescription, "\nProblem with query: ", Query);    
+    Print("Error #", MySqlErrorNumber, "\n", MySqlErrorDescription, "\nProblem with create table query: ", Query);    
+    Comment("Error #", MySqlErrorNumber, "\n", MySqlErrorDescription, "\nProblem with create table query: ", Query);    
  
      if(notify && !notification_sent_flag){    
        SendNotification("Problem with CreateTable() create table query!!!");
         notification_sent_flag = true;  
         }
-      }
-         
-   else{
-   
-       Print("Table with table name: ",Table," has been created successfully."); 
-        notification_sent_flag = false;  //resetting the notifications sent flag to false
-       }    
+      }        
+      else
+      {
+       Print("Table ",Table," created successfully."); 
+       notification_sent_flag = false;  //resetting the notifications sent flag to false
+      }       
  }
  
 
