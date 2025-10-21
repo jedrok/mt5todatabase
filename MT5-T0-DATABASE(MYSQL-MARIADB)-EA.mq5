@@ -1,9 +1,9 @@
 //+------------------------------------------------------------------+
 //|                                  MT5-TO-MYSQL-DATABASE-EA-V3.mq5 |
-//|                                  Copyright 2023, Ariho Jedididah |
+//|                                  Copyright 2023, Ariho Jedidiah |
 //|                                             https://www.mql5.com |
 //+------------------------------------------------------------------+
-#property copyright "Ariho Jedididah"
+#property copyright "Ariho Jedidiah"
 #property link      "https://www.mql5.com"
 #property version   "3.00"
 
